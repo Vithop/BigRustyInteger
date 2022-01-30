@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'big_rusty_integer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=big_rusty_integer",
+                    "--package=big_rusty_integer"
+                ],
+                "filter": {
+                    "name": "big_rusty_integer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'big_rusty_integer'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=big_rusty_integer",
+                    "--package=big_rusty_integer"
+                ],
+                "filter": {
+                    "name": "big_rusty_integer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
