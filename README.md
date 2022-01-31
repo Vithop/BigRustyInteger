@@ -16,8 +16,6 @@ Lastly to build and run.
 ```
 cargo r
 ```
-##Benchmark
-Coming soon!
 
 ##Example usage
 This library is made with the goal of creating a Big Integer implementation which is as easy to use as primitive types so please use it as you would regular primitive types. 
@@ -44,3 +42,6 @@ We also have a concurrent implementation of multiply for the really big Big Ints
 ```
 let e = BigInt::concurrent_slow_mul(&a, &b);
 ```
+
+##Benchmark
+Coming soon!
