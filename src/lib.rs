@@ -1,11 +1,13 @@
 use std::ops;
+use std::iter::Sum;
 // use std::mem;
 use num_traits::{One, Zero};
+use rayon::prelude::*;
+use std::cmp::min;
 use std::sync::Arc;
 use std::thread;
 use std::u32;
 use std::u64;
-use rayon::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct BigInt {
@@ -25,29 +27,61 @@ impl BigInt {
     return self.digits.resize(new_len, val);
   }
 
+  fn split_at(&self, n: usize) -> (BigInt, BigInt) {
+    let (low, high) = self.digits.split_at(n);
+    return (BigInt::new(low.to_vec()), BigInt::new(high.to_vec()));
+  }
+
+  fn shrink_to_fit(&mut self) {
+    self.digits.shrink_to_fit();
+  }
   pub fn print_digits(&self) {
     println!("{:?}", self.digits)
   }
 
-  fn concurrent_slow_mul(lhs: BigInt, rhs: BigInt) -> BigInt {
+  pub fn concurrent_slow_mul(lhs: &BigInt, rhs: &BigInt) -> BigInt {
     let mut result = BigInt::new(vec![0]);
-  
-    let mut transient_mul_vec_iter: Vec<BigInt> = rhs
+    result.resize(result.size() + rhs.size(), 0);
+
+    let mut transient_mul_vec: Vec<BigInt> = rhs
       .digits
-      .into_par_iter()
-      .map(|digit_b| (&lhs * digit_b))
+      .par_iter()
+      .map(|digit_b| (lhs * *digit_b))
       .collect();
-  
-    for (i, num) in transient_mul_vec_iter.iter_mut().enumerate() {
-      *num <<= i;
-      if result.size() < num.size() {
-        result.resize(num.size(), 0);
-      }
-      result += &num;
-    }
-  
+
+    transient_mul_vec
+      .iter_mut()
+      .enumerate()
+      .for_each(|(i, num)| *num <<= i);
+
+    result = transient_mul_vec
+      .par_iter()
+      .sum();
+
+    result.shrink_to_fit();
     return result;
   }
+
+  // pub fn karatsuba_mul(lhs: &BigInt, rhs: &BigInt) -> BigInt {
+  //   if lhs.size() < 2 || rhs.size() < 2 {
+  //     return lhs * rhs;
+  //   }
+
+  //   let m = min(lhs.size(), rhs.size());
+  //   let m2 = ((m as f64) / 2.0).floor() as usize;
+
+  //   let (high1, low1) = lhs.split_at (m2);
+  //   let (high2, low2) = rhs.split_at (m2);
+  //   /* 3 recursive calls made to numbers approximately half the size. */
+  //   let z0 = BigInt::karatsuba_mul (&low1, &low2);
+  //   let z1 = BigInt::karatsuba_mul (&(&low1 + &high1), &(&low2 + &high2));
+  //   let z2 = BigInt::karatsuba_mul (&high1, &high2);
+  //   z2 <<= m2 * 2;
+  //   let z3 =  (z1 - z2 - z0) ;
+  //   z3 <<= m2;
+
+  //   return z2  + + z0
+  // }
 }
 
 impl Zero for BigInt {
@@ -75,6 +109,10 @@ impl ops::ShlAssign<usize> for BigInt {
 }
 impl<'a> ops::AddAssign<&'a BigInt> for BigInt {
   fn add_assign(&mut self, rhs: &Self) {
+    if self.size() < rhs.size() {
+      self.resize(rhs.size(), 0);
+    }
+
     let mut carry: bool = false;
     let (self_lo, self_hi) = self.digits.split_at_mut(rhs.size());
     for (a, b) in self_lo.iter_mut().zip(rhs.digits.iter()) {
@@ -104,7 +142,7 @@ impl<'a> ops::AddAssign<&'a BigInt> for BigInt {
 impl ops::Add for &BigInt {
   type Output = BigInt;
 
-  fn add(self, rhs: Self) -> BigInt {
+  fn add(self, rhs: Self) -> Self::Output {
     let mut c = self.clone();
     c += &rhs;
     return c;
@@ -114,7 +152,7 @@ impl ops::Add for &BigInt {
 impl ops::Add for BigInt {
   type Output = BigInt;
 
-  fn add(self, rhs: Self) -> BigInt {
+  fn add(self, rhs: Self) -> Self::Output {
     let mut c = self.clone();
     c += &rhs;
     return c;
@@ -124,7 +162,7 @@ impl ops::Add for BigInt {
 impl ops::Mul for BigInt {
   type Output = BigInt;
 
-  fn mul(self, rhs: Self) -> BigInt {
+  fn mul(self, rhs: Self) -> Self::Output {
     let mut c = self.clone();
     c *= rhs;
     return c;
@@ -134,50 +172,60 @@ impl ops::Mul for BigInt {
 impl ops::Mul for &BigInt {
   type Output = BigInt;
 
-  fn mul(self, rhs: Self) -> BigInt {
+  fn mul(self, rhs: Self) -> Self::Output {
     let mut c = self.clone();
     c *= rhs;
     return c;
   }
 }
 
-impl ops::MulAssign<&BigInt> for BigInt{
+impl ops::MulAssign<&BigInt> for BigInt {
   fn mul_assign(&mut self, rhs: &Self) {
-    let self_copy = self.clone();
+    let self_copy = &*self;
+    let mut result = BigInt::zero();
+    result.resize(self.size() + rhs.size(), 0);
 
     let mut transient_mul_vec_iter: Vec<BigInt> = rhs
       .digits
       .iter()
-      .map(|digit_b| (&self_copy * *digit_b))
+      .map(|digit_b| (self_copy * *digit_b))
       .collect();
 
-    for (i, num) in transient_mul_vec_iter.iter_mut().enumerate() {
-      *num <<= i;
-      if self.size() < num.size() {
-        self.resize(num.size(), 0);
-      }
-      *self += &num;
-    }
+    transient_mul_vec_iter
+      .iter_mut()
+      .enumerate()
+      .for_each(|(i, num)| *num <<= i);
+
+    result = transient_mul_vec_iter
+      .iter()
+      .fold(result, |accum, num| &accum + num);
+    result.shrink_to_fit();
+    *self = result;
   }
 }
 
 impl ops::MulAssign for BigInt {
   fn mul_assign(&mut self, rhs: Self) {
-    let self_copy = self.clone();
+    let self_copy = &*self;
+    let mut result = BigInt::zero();
+    result.resize(self.size() + rhs.size(), 0);
 
     let mut transient_mul_vec_iter: Vec<BigInt> = rhs
       .digits
-      .into_iter()
-      .map(|digit_b| (&self_copy * digit_b))
+      .iter()
+      .map(|digit_b| (self_copy * *digit_b))
       .collect();
 
-    for (i, num) in transient_mul_vec_iter.iter_mut().enumerate() {
-      *num <<= i;
-      if self.size() < num.size() {
-        self.resize(num.size(), 0);
-      }
-      *self += &num;
-    }
+    transient_mul_vec_iter
+      .iter_mut()
+      .enumerate()
+      .for_each(|(i, num)| *num <<= i);
+
+    result = transient_mul_vec_iter
+      .iter()
+      .fold(result, |accum, num| &accum + num);
+    result.shrink_to_fit();
+    *self = result;
   }
 }
 
@@ -198,13 +246,39 @@ impl ops::MulAssign<u64> for BigInt {
 
 impl ops::Mul<u64> for &BigInt {
   type Output = BigInt;
-  fn mul(self, rhs: u64) -> BigInt {
-    let mut c = BigInt::new(self.digits.clone());
+  fn mul(self, rhs: u64) -> Self::Output {
+    let mut c = self.clone();
     c *= rhs;
     return c;
   }
 }
 
+impl ops::Mul<u64> for BigInt {
+  type Output = BigInt;
+  fn mul(self, rhs: u64) -> Self::Output {
+    let mut c = self.clone();
+    c *= rhs;
+    return c;
+  }
+}
+
+impl Sum<Self> for BigInt {
+  fn sum<I>(iter: I) -> Self
+  where
+      I: Iterator<Item = Self>
+  {
+    iter.fold(BigInt::zero(), |accum, x| &accum + &x)
+  }
+}
+
+impl<'a> Sum<&'a Self> for BigInt {
+  fn sum<I>(iter: I) -> Self
+  where
+      I: Iterator<Item = &'a Self>
+  {
+    iter.fold(BigInt::zero(), |accum, x| &accum + &x)
+  }
+}
 // fn slow_mul(lhs: BigInt, rhs: BigInt) -> BigInt {
 //   let mut result = BigInt::new(vec![0]);
 
@@ -224,8 +298,6 @@ impl ops::Mul<u64> for &BigInt {
 
 //   return result;
 // }
-
-
 
 fn full_adder(a: u64, b: u64, c: u64) -> (u64, bool, bool) {
   let (half_sum, carry1) = a.overflowing_add(b);
@@ -267,8 +339,8 @@ fn ripple_carry_adder(lhs: &BigInt, rhs: &BigInt) -> BigInt {
 
 fn widening_mul(a: u64, b: u64) -> (u64, u64) {
   let hi = |x: u64| x >> 32;
-
   let lo = |x: u64| ((u32::MAX) as u64) & x;
+
   let mut x = lo(a) * lo(b);
   let s0 = lo(x);
   x = hi(a) * lo(b) + hi(x);

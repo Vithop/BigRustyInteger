@@ -44,4 +44,7 @@ let e = BigInt::concurrent_slow_mul(&a, &b);
 ```
 
 ##Benchmark
-Coming soon!
+To run benchmark
+```
+cargo bench
+```

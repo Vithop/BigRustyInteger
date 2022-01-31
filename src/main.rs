@@ -15,10 +15,12 @@ fn main() {
     let c:BigInt = &a + &b;
     c.print_digits();
     println!(" _____");
-    
+
     b *= u64::MAX;
     b.print_digits();
 
+    a = BigInt::new(vec![2,3,4]);
+    b = BigInt::new(vec![5,6,7]);
     println!(" _____");
     let d = &a * &b;
     d.print_digits();
@@ -26,7 +28,7 @@ fn main() {
     b.print_digits();
 
     println!(" _____");
-    let e = &a * &b;
+    let e = BigInt::concurrent_slow_mul(&a, &b);
     e.print_digits();
     a.print_digits();
     b.print_digits();
