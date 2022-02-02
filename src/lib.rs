@@ -235,10 +235,7 @@ impl ops::MulAssign for BigInt {
 
     result = transient_mul_vec_iter
       .iter()
-      .fold(result, |accum, num| {
-        accum += num;
-        accum
-      });
+      .fold(result, |accum, num| &accum + num);
     result.shrink_to_fit();
     *self = result;
   }
