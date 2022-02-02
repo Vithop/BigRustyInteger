@@ -19,6 +19,18 @@ impl BigInt {
     return BigInt { digits };
   }
 
+  pub fn digits(&self) -> &Vec<u64> {
+    return &self.digits;
+  }
+
+  pub fn most_sig_digit(&self) -> u64 {
+    return if self.size() == 0 {0} else {self.digits[self.size()-1]};
+  }
+
+  pub fn least_sig_digit(&self) -> u64 {
+    return self.digits[0];
+  }
+
   pub fn size(&self) -> usize {
     return self.digits.len();
   }
@@ -223,7 +235,10 @@ impl ops::MulAssign for BigInt {
 
     result = transient_mul_vec_iter
       .iter()
-      .fold(result, |accum, num| &accum + num);
+      .fold(result, |accum, num| {
+        accum += num;
+        accum
+      });
     result.shrink_to_fit();
     *self = result;
   }
